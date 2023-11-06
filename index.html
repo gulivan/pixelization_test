@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Circle Pixelizer</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    background-color: #f7f7f7;
+  }
+  canvas {
+    border: 1px solid black;
+  }
+</style>
+</head>
+<body>
+<input type="file" id="imageInput" accept="image/*">
+<canvas id="imageCanvas"></canvas>
+
+<script>
+  const imageInput = document.getElementById('imageInput');
+  const canvas = document.getElementById('imageCanvas');
+  const ctx = canvas.getContext('2d');
+
+  function drawCirclePixelatedImage(image) {
+    const pixelSize = 10; // Size of the 'pixels' which are actually circles
+    canvas.width = image.width;
+    canvas.height = image.height;
+
+    ctx.drawImage(image, 0, 0);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+
+    // Clear the canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (let y = 0; y < canvas.height; y += pixelSize) {
+      for (let x = 0; x < canvas.width; x += pixelSize) {
+        const red = data[((y * (imageData.width * 4)) + (x * 4)) + 0];
+        const green = data[((y * (imageData.width * 4)) + (x * 4)) + 1];
+        const blue = data[((y * (imageData.width * 4)) + (x * 4)) + 2];
+        const alpha = data[((y * (imageData.width * 4)) + (x * 4)) + 3];
+        ctx.fillStyle = 'rgba(' + red + ',' + green + ',' + blue + ',' + (alpha/255) + ')';
+        ctx.beginPath();
+        ctx.arc(x + pixelSize / 2, y + pixelSize / 2, pixelSize / 2, 0, Math.PI * 2, false);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+  }
+
+  imageInput.addEventListener('change', function(e) {
+    if (e.target.files && e.target.files[0]) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+          drawCirclePixelatedImage(img);
+        }
+        img.src = e.target.result;
+      }
+      reader.readAsDataURL(e.target.files[0]);
+    }
+  });
+</script>
+</body>
+</html>
