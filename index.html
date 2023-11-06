@@ -3,84 +3,124 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Circle Pixelizer</title>
+<title>Pixelize Image with Circles and Change Colors</title>
 <style>
   body {
     font-family: Arial, sans-serif;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    margin: 0;
-    background-color: #f7f7f7;
   }
   canvas {
     border: 1px solid black;
-    margin-top: 10px;
-  }
-  .controls {
-    text-align: center;
+    cursor: crosshair;
   }
 </style>
 </head>
 <body>
-<div class="controls">
-  <input type="file" id="imageInput" accept="image/*"><br>
-  <label for="circleSize">Circle Size:</label>
-  <input type="number" id="circleSize" value="10" min="1"><br>
-  <button id="pixelateButton">Pixelate</button>
-</div>
+<h2>Pixelize Image with Circles and Change Colors</h2>
+
+<input type="file" id="imageLoader" name="imageLoader"/>
+<hr>
+<label for="pixelSize">Pixelization Level:</label>
+<input type="range" id="pixelSize" min="1" max="50" value="10"/>
+<br>
+<label for="colorPicker">Select Color:</label>
+<input type="color" id="colorPicker"/>
+<hr>
 <canvas id="imageCanvas"></canvas>
 
 <script>
-  const imageInput = document.getElementById('imageInput');
-  const circleSizeInput = document.getElementById('circleSize');
-  const pixelateButton = document.getElementById('pixelateButton');
+  const imageLoader = document.getElementById('imageLoader');
+  const pixelSizeInput = document.getElementById('pixelSize');
+  const colorPicker = document.getElementById('colorPicker');
   const canvas = document.getElementById('imageCanvas');
   const ctx = canvas.getContext('2d');
-  let img = new Image();
+  let image = null;
+  let pixelSize = parseInt(pixelSizeInput.value);
+  let pixelData = [];
 
-  function drawCirclePixelatedImage() {
-    const pixelSize = parseInt(circleSizeInput.value);
-    canvas.width = img.width;
-    canvas.height = img.height;
+  imageLoader.addEventListener('change', handleImage, false);
+  pixelSizeInput.addEventListener('input', () => {
+    pixelSize = parseInt(pixelSizeInput.value);
+    updatePixelization();
+  });
+  canvas.addEventListener('click', changeColor);
 
-    ctx.drawImage(img, 0, 0);
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const data = imageData.data;
+  function handleImage(e) {
+    const reader = new FileReader();
+    reader.onload = function(event) {
+      image = new Image();
+      image.onload = function() {
+        canvas.width = image.width;
+        canvas.height = image.height;
+        updatePixelization();
+      }
+      image.src = event.target.result;
+    }
+    reader.readAsDataURL(e.target.files[0]);
+  }
 
-    // Clear the canvas
+  function updatePixelization() {
+    if (!image) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
+    pixelData = [];
+    // draw the image with pixelization
     for (let y = 0; y < canvas.height; y += pixelSize) {
       for (let x = 0; x < canvas.width; x += pixelSize) {
-        const red = data[((y * (imageData.width * 4)) + (x * 4)) + 0];
-        const green = data[((y * (imageData.width * 4)) + (x * 4)) + 1];
-        const blue = data[((y * (imageData.width * 4)) + (x * 4)) + 2];
-        const alpha = data[((y * (imageData.width * 4)) + (x * 4)) + 3];
-        ctx.fillStyle = 'rgba(' + red + ',' + green + ',' + blue + ',' + (alpha/255) + ')';
+        // get the color of the pixel
+        ctx.drawImage(image, x, y, pixelSize, pixelSize, x, y, pixelSize, pixelSize);
+        let imageData = ctx.getImageData(x, y, pixelSize, pixelSize);
+        let avgColor = averageColor(imageData);
+        // draw the circle
         ctx.beginPath();
         ctx.arc(x + pixelSize / 2, y + pixelSize / 2, pixelSize / 2, 0, Math.PI * 2, false);
-        ctx.closePath();
+        ctx.fillStyle = `rgba(${avgColor.r},${avgColor.g},${avgColor.b},${avgColor.a})`;
         ctx.fill();
+        // store the color and position of the circle
+        pixelData.push({x: x, y: y, color: ctx.fillStyle});
       }
     }
   }
 
-  imageInput.addEventListener('change', function(e) {
-    if (e.target.files && e.target.files[0]) {
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        img.onload = function() {
-          drawCirclePixelatedImage();
-        }
-        img.src = e.target.result;
-      }
-      reader.readAsDataURL(e.target.files[0]);
+  function averageColor(data) {
+    const rgb = {r: 0, g: 0, b: 0, a: 0};
+    const pixelCount = data.width * data.height;
+    for (let i = 0; i < data.data.length; i += 4) {
+      rgb.r += data.data[i];
+      rgb.g += data.data[i + 1];
+      rgb.b += data.data[i + 2];
+      rgb.a += data.data[i + 3];
     }
-  });
+    rgb.r = Math.floor(rgb.r / pixelCount);
+    rgb.g = Math.floor(rgb.g / pixelCount);
+    rgb.b = Math.floor(rgb.b / pixelCount);
+    rgb.a = Math.floor(rgb.a / pixelCount) / 255;
+    return rgb;
+  }
 
-  pixelateButton.addEventListener('click', drawCirclePixelatedImage);
+  function changeColor(e) {
+    // Get click coordinates
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    // Find the clicked circle
+    const circle = pixelData.find(circle => {
+      const dx = x - (circle.x + pixelSize / 2);
+      const dy = y - (circle.y + pixelSize / 2);
+      return (dx * dx + dy * dy) <= (pixelSize / 2) * (pixelSize / 2);
+    });
+
+    if (circle) {
+      // Redraw the circle with the new color
+      ctx.beginPath();
+      ctx.arc(circle.x + pixelSize / 2, circle.y + pixelSize / 2, pixelSize / 2, 0, Math.PI * 2, false);
+      ctx.fillStyle = colorPicker.value;
+      ctx.fill();
+
+      // Update the color in the pixelData array
+      circle.color = colorPicker.value;
+    }
+  }
 </script>
+
 </body>
 </html>
